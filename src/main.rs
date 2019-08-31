@@ -5,7 +5,7 @@ use std::io::Write;
 const WIDTH: u32 = 1024;
 const HEIGHT: u32 = 768;
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, PartialOrd, PartialEq, Clone)]
 struct Vec3f {
     x: f32,
     y: f32,
@@ -67,17 +67,36 @@ struct Ray {
     direction: Vec3f,
 }
 
-impl Sphere {
-    fn intersects_with_ray(&self, ray: &Ray) -> bool {
-        // Check if the origin of the ray is in the sphere itself
-        if self.center.minus(&ray.origin).length_squared() < self.radius * self.radius {
-            return true;
-        }
+struct Hit {
+    normal: Vec3f,
+    point: Vec3f,
+}
 
-        let (shortest_point, lambda) = self.center.shortest_point_to_ray(ray);
+impl Sphere {
+    //The ray has to have a normalized direction vector
+    fn intersects_with_ray(&self, ray: &Ray) -> Option<Hit>{
+        let (shortest_point, lambda) = self.center.shortest_point_to_ray(&ray);
+
         let distance_vector = self.center.minus(&shortest_point);
 
-        (distance_vector.length_squared() <= self.radius * self.radius) && lambda >= 0.
+        let l = self.radius * self.radius - distance_vector.length_squared();
+
+        let is_hit: bool = (l > 0.) ;
+
+        //No hits
+        if !is_hit {
+            return None;
+        }
+
+        //These are the two possible hit points
+        let mut hit_1 = lambda - l;
+        let hit_2 = lambda + l;
+
+        if hit_1 < 0. {hit_1 = hit_2}
+        if hit_1 < 0. { return None }
+        let hit_point = ray.origin.plus(ray.direction.times(hit_1));
+        let normal = hit_point.minus(&self.center);
+        Some(Hit { point: hit_point, normal })
     }
 }
 
@@ -94,17 +113,13 @@ impl Scene {
     /// Returns the color of the pixel the ray originates from
     fn cast_ray(&self, ray: &Ray) -> Vec3f {
         for o in self.objects.iter() {
-            if o.intersects_with_ray(&ray) {
-                // Now tracing path to light
-                let diffuse_light_intensity: f32 = 0.;
-
-//                for light in self.lights.iter() {
-//                    let light_dir = light.position.minus(ray.)
-//                }
-                return Vec3f::new(0.2, 0.7, 0.3);
+            match o.intersects_with_ray(&ray) {
+                Some(hit) => return Vec3f::new(0.2, 0.7, 0.3),
+                _ => continue,
             }
         }
-        return Vec3f::new(0.4, 0.4, 0.3);
+        // Background color
+        Vec3f::new(0.4, 0.4, 0.3)
     }
 
     fn render(&self) -> Vec<Vec3f> {
@@ -200,7 +215,7 @@ mod tests {
             };
 
         let result = sphere.intersects_with_ray(&ray);
-        assert_eq!(result, true);
+        assert_eq!(result.is_some(), true);
     }
 
     #[test]
@@ -217,6 +232,6 @@ mod tests {
             };
 
         let result = sphere.intersects_with_ray(&ray);
-        assert_eq!(result, true);
+        assert_eq!(result.is_some(), true);
     }
 }
