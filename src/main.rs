@@ -37,8 +37,18 @@ impl Vec3f {
         self.x * self.x + self.y * self.y + self.z * self.z
     }
 
+    #[inline]
     fn times(&self, factor: f32) -> Self {
         Vec3f { x: self.x * factor, y: self.y * factor, z: self.z * factor }
+    }
+
+    fn normalize(&self) -> Self {
+        let length = f32::sqrt(self.length_squared());
+        Vec3f { x: self.x / length, y: self.y / length, z: self.z / length }
+    }
+
+    fn max_element(&self) -> f32 {
+        f32::max(self.x, f32::max(self.y, self.z))
     }
 
     /// Returns the shortest point and a parameter for the straight line equation of the ray.
@@ -67,6 +77,12 @@ struct Ray {
     direction: Vec3f,
 }
 
+impl Ray {
+    fn new(origin: Vec3f, direction: Vec3f) -> Self {
+        Ray { origin ,  direction: direction.normalize() }
+    }
+}
+
 struct Hit {
     normal: Vec3f,
     point: Vec3f,
@@ -74,14 +90,14 @@ struct Hit {
 
 impl Sphere {
     //The ray has to have a normalized direction vector
-    fn intersects_with_ray(&self, ray: &Ray) -> Option<Hit>{
+    fn intersects_with_ray(&self, ray: &Ray) -> Option<Hit> {
         let (shortest_point, lambda) = self.center.shortest_point_to_ray(&ray);
 
         let distance_vector = self.center.minus(&shortest_point);
 
         let l = self.radius * self.radius - distance_vector.length_squared();
 
-        let is_hit: bool = (l > 0.) ;
+        let is_hit: bool = (l > 0.);
 
         //No hits
         if !is_hit {
@@ -92,10 +108,11 @@ impl Sphere {
         let mut hit_1 = lambda - l;
         let hit_2 = lambda + l;
 
-        if hit_1 < 0. {hit_1 = hit_2}
-        if hit_1 < 0. { return None }
+        if hit_1 < 0. { hit_1 = hit_2 }
+        if hit_1 < 0. { return None; }
+
         let hit_point = ray.origin.plus(ray.direction.times(hit_1));
-        let normal = hit_point.minus(&self.center);
+        let normal = hit_point.minus(&self.center).normalize();
         Some(Hit { point: hit_point, normal })
     }
 }
@@ -114,10 +131,19 @@ impl Scene {
     fn cast_ray(&self, ray: &Ray) -> Vec3f {
         for o in self.objects.iter() {
             match o.intersects_with_ray(&ray) {
-                Some(hit) => return Vec3f::new(0.2, 0.7, 0.3),
+                Some(hit) => {
+                    let mut diffuse_light_intensity: f32 = 0.;
+                    for light in self.lights.iter() {
+                        let light_dir = light.position.minus(&hit.point).normalize();
+                        diffuse_light_intensity +=
+                            light.intensity * f32::max(0., light_dir.dot(&hit.normal))
+                    }
+                    return Vec3f::new(0.2, 0.7, 0.3).times(diffuse_light_intensity);
+                }
                 _ => continue,
             }
         }
+
         // Background color
         Vec3f::new(0.4, 0.4, 0.3)
     }
@@ -130,10 +156,10 @@ impl Scene {
             for i in 0..WIDTH {
                 let x: f32 = (2. * (i as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(fov / 2.);
                 let y: f32 = -(2. * (j as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(fov / 2.);
-                let ray = Ray {
-                    origin: Vec3f::new(0., 0., 0.),
-                    direction: Vec3f::new(x, y, -1.),
-                };
+                let ray = Ray::new (
+                     Vec3f::new(0., 0., 0.),
+                     Vec3f::new(x, y, -1.),
+                );
 
                 frame_buffer.push(self.cast_ray(&ray));
             }
@@ -167,7 +193,7 @@ fn main() {
         Sphere { radius: 4., center: Vec3f::new(7., 5., -12.) },
     ];
     let lights = vec![
-        Light {intensity: 1., position: Vec3f::new(0., 0., 0.)}
+        Light { intensity: 2., position: Vec3f::new(-20., 20., 20.) }
     ];
     let scene = Scene::new(spheres, lights);
     let mut frame_buffer = scene.render();
@@ -177,7 +203,12 @@ fn main() {
     // Converts internal Vec3f representation to the format of the image library
     for (x, y, pixel) in image_buffer.enumerate_pixels_mut() {
         let color = frame_buffer.get(((y % WIDTH) * WIDTH + x) as usize).unwrap();
-        *pixel = image::Rgb([(255. * color.x) as u8, (color.y * 255.) as u8, (color.z * 255.) as u8]);
+        // Normalize colors if the renderer overshot the intensity of the lights
+        let mut max = color.max_element();
+        if max < 1. {
+            max = 1.;
+        }
+        *pixel = image::Rgb([(255. * color.x / max)  as u8, (color.y * 255. / max) as u8, (color.z * 255. / max) as u8]);
     }
 
     image_buffer.save("output.png").unwrap();
