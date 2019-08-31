@@ -4,6 +4,7 @@ use std::io::Write;
 
 const WIDTH: u32 = 1024;
 const HEIGHT: u32 = 768;
+const ERR: f32 = 0.000001;
 
 #[derive(Debug, PartialOrd, PartialEq, Clone)]
 struct Vec3f {
@@ -54,16 +55,25 @@ impl Vec3f {
     /// Returns the shortest point and a parameter for the straight line equation of the ray.
     /// If positive the point lies in direction of the ray.
     /// If negative in the opposite direction.
+    ///
+    /// This method assumes that the direction of the ray is normalized!
     fn shortest_point_to_ray(&self, ray: &Ray) -> (Self, f32) {
         let point_center = self.minus(&ray.origin);
-        let direction_length_sq2 = ray.direction.length_squared();
 
         let plane_prod = ray.direction.dot(&point_center);
 
-        let lambda: f32 = plane_prod / direction_length_sq2;
+        let lambda: f32 = plane_prod;
 
         let shortest_point = ray.origin.plus(ray.direction.times(lambda));
         (shortest_point, lambda)
+    }
+
+    fn equal_within_err(&self, other: Self) -> bool {
+        (
+            self.x < other.x + ERR && self.x > other.x - ERR &&
+            self.y < other.y + ERR && self.y > other.y - ERR &&
+            self.z < other.z + ERR && self.z > other.z - ERR
+        )
     }
 }
 
@@ -79,7 +89,7 @@ struct Ray {
 
 impl Ray {
     fn new(origin: Vec3f, direction: Vec3f) -> Self {
-        Ray { origin ,  direction: direction.normalize() }
+        Ray { origin, direction: direction.normalize() }
     }
 }
 
@@ -107,10 +117,13 @@ impl Sphere {
         //These are the two possible hit points
         let mut hit_1 = lambda - l;
         let hit_2 = lambda + l;
+//        dbg!(hit_1);
+//        dbg!(hit_2);
 
         if hit_1 < 0. { hit_1 = hit_2 }
         if hit_1 < 0. { return None; }
 
+//        println!("Chosen: {}", hit_1);
         let hit_point = ray.origin.plus(ray.direction.times(hit_1));
         let normal = hit_point.minus(&self.center).normalize();
         Some(Hit { point: hit_point, normal })
@@ -136,9 +149,14 @@ impl Scene {
                     for light in self.lights.iter() {
                         let light_dir = light.position.minus(&hit.point).normalize();
                         diffuse_light_intensity +=
-                            light.intensity * f32::max(0., light_dir.dot(&hit.normal))
+                            light.intensity * f32::max(0., light_dir.dot(&hit.normal));
+//                        return Vec3f {
+//                            x: (hit.normal.x / 2.) + 0.5,
+//                            y: (hit.normal.y / 2.) + 0.5,
+//                            z: (hit.normal.z / 2.) + 0.5,
+//                        };
                     }
-                    return Vec3f::new(0.2, 0.7, 0.3).times(diffuse_light_intensity);
+                    return Vec3f::new(0.3, 0.1, 0.1).times(diffuse_light_intensity);
                 }
                 _ => continue,
             }
@@ -151,14 +169,14 @@ impl Scene {
     fn render(&self) -> Vec<Vec3f> {
         let mut frame_buffer = Vec::<Vec3f>::with_capacity((WIDTH * HEIGHT) as usize);
 
-        let fov = PI / 2.;
+        let fov = PI / 3.;
         for j in 0..HEIGHT {
             for i in 0..WIDTH {
                 let x: f32 = (2. * (i as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(fov / 2.);
                 let y: f32 = -(2. * (j as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(fov / 2.);
-                let ray = Ray::new (
-                     Vec3f::new(0., 0., 0.),
-                     Vec3f::new(x, y, -1.),
+                let ray = Ray::new(
+                    Vec3f::new(0., 0., 0.),
+                    Vec3f::new(x, y, -1.),
                 );
 
                 frame_buffer.push(self.cast_ray(&ray));
@@ -190,10 +208,10 @@ fn main() {
         Sphere { radius: 2.0, center: Vec3f::new(-3., 0., -16.) },
         Sphere { radius: 2.0, center: Vec3f::new(-1., -1.5, -12.) },
         Sphere { radius: 3., center: Vec3f::new(1.5, -0.5, -18.) },
-        Sphere { radius: 4., center: Vec3f::new(7., 5., -12.) },
+        Sphere { radius: 4., center: Vec3f::new(7., 5., -15.) },
     ];
     let lights = vec![
-        Light { intensity: 2., position: Vec3f::new(-20., 20., 20.) }
+        Light { intensity: 2.5, position: Vec3f::new(-30., 20., 10.) }
     ];
     let scene = Scene::new(spheres, lights);
     let mut frame_buffer = scene.render();
@@ -208,7 +226,9 @@ fn main() {
         if max < 1. {
             max = 1.;
         }
-        *pixel = image::Rgb([(255. * color.x / max)  as u8, (color.y * 255. / max) as u8, (color.z * 255. / max) as u8]);
+//        max = 1.;
+        let color = color.times(1. / max);
+        *pixel = image::Rgb([(color.x * 255.) as u8, (color.y * 255.) as u8, (color.z * 255.) as u8]);
     }
 
     image_buffer.save("output.png").unwrap();
@@ -221,15 +241,19 @@ mod tests {
     #[test]
     fn test_shortest_point() {
         let p = Vec3f::new(0., 5., 6.);
-        let ray = Ray
-            {
-                origin: Vec3f::new(2., 0., 1.),
-                direction: Vec3f::new(-4., 1., 1.),
-            };
+        let ray = Ray::new
+            (
+                Vec3f::new(2., 0., 1.),
+                Vec3f::new(-4., 1., 1.),
+            );
 
         let (result, lambda) = p.shortest_point_to_ray(&ray);
-        assert_eq!(result, Vec3f::new(-2., 1., 2.));
-        assert_eq!(lambda, 1.);
+        let expected = Vec3f::new(-2., 1., 2.) ;
+        let lambda_expected = f32::sqrt(Vec3f::new(-4., 1., 1.).length_squared());
+        dbg!(lambda_expected);
+        dbg!(lambda);
+        assert!(lambda + ERR > lambda_expected);
+        assert!(expected.equal_within_err(result));
     }
 
     #[test]
@@ -239,11 +263,11 @@ mod tests {
             radius: 1.,
         };
 
-        let ray = Ray
-            {
-                origin: Vec3f::new(0., 0., 0.),
-                direction: Vec3f::new(1., 1., 0.),
-            };
+        let ray = Ray::new
+            (
+                Vec3f::new(0., 0., 0.),
+                Vec3f::new(1., 1., 0.),
+            );
 
         let result = sphere.intersects_with_ray(&ray);
         assert_eq!(result.is_some(), true);
@@ -264,5 +288,70 @@ mod tests {
 
         let result = sphere.intersects_with_ray(&ray);
         assert_eq!(result.is_some(), true);
+    }
+
+    #[test]
+    fn test_ray_intersect_normal() {
+        let sphere = Sphere {
+            center: Vec3f::new(3., 3., 0.),
+            radius: 1.,
+        };
+
+        let ray = Ray::new
+            (
+                Vec3f::new(0., 0., 0.),
+                Vec3f::new(1., 1., 0.),
+            );
+
+        let result = sphere.intersects_with_ray(&ray);
+        assert_eq!(result.is_some(), true);
+        let hit = result.unwrap();
+        let normal = hit.normal;
+        assert!(normal.equal_within_err(Vec3f::new(-1., -1., 0.).normalize()));
+    }
+
+    #[test]
+    fn test_ray_intersect_normal_under() {
+        let sphere = Sphere {
+            center: Vec3f::new(3., 0., 0.),
+            radius: 1.,
+        };
+
+        let ray = Ray::new
+            (
+                Vec3f::new(0., 0., 0.),
+                Vec3f::new(1., 0., 0.),
+            );
+
+        let result = sphere.intersects_with_ray(&ray);
+        assert_eq!(result.is_some(), true);
+        let hit = result.unwrap();
+        let normal = hit.normal;
+        assert_eq!(normal, Vec3f::new(-1., 0., 0.).normalize());
+    }
+
+    #[test]
+    fn test_ray_intersect_normal_2() {
+        let sphere = Sphere {
+            center: Vec3f::new(2., 0., 0.),
+            radius: 1.,
+        };
+
+        let ray = Ray::new
+            (
+                Vec3f::new(0., 0., 0.),
+                Vec3f::new(1., -0.5, 0.),
+            );
+
+        let result = sphere.intersects_with_ray(&ray);
+        assert_eq!(result.is_some(), true);
+        let hit = result.unwrap();
+        let normal = hit.normal;
+        assert_eq!(normal, Vec3f::new(-1., 0., 0.).normalize());
+    }
+    #[test]
+    fn test_normalize() {
+        let vec = Vec3f::new(2., 2., 0.);
+        assert_eq!(vec.normalize(), Vec3f::new(2., 2., 0.).times(1. / f32::sqrt(8.)))
     }
 }
