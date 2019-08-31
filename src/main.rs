@@ -1,6 +1,6 @@
+use std::f32::consts::PI;
 use std::fs::File;
 use std::io::Write;
-use std::f32::consts::PI;
 
 const WIDTH: u32 = 1024;
 const HEIGHT: u32 = 768;
@@ -83,21 +83,26 @@ impl Sphere {
 
 struct Scene {
     objects: Vec<Sphere>,
+    lights: Vec<Light>,
 }
 
 impl Scene {
-    fn new(spheres: Vec<Sphere>) -> Self {
-        Scene { objects: spheres }
+    fn new(spheres: Vec<Sphere>, lights: Vec<Light>) -> Self {
+        Scene { objects: spheres, lights }
     }
 
     /// Returns the color of the pixel the ray originates from
     fn cast_ray(&self, ray: &Ray) -> Vec3f {
-        for o in self.objects.iter()
-        {
+        for o in self.objects.iter() {
             if o.intersects_with_ray(&ray) {
+                // Now tracing path to light
+                let diffuse_light_intensity: f32 = 0.;
+
+//                for light in self.lights.iter() {
+//                    let light_dir = light.position.minus(ray.)
+//                }
                 return Vec3f::new(0.2, 0.7, 0.3);
             }
-
         }
         return Vec3f::new(0.4, 0.4, 0.3);
     }
@@ -105,10 +110,10 @@ impl Scene {
     fn render(&self) -> Vec<Vec3f> {
         let mut frame_buffer = Vec::<Vec3f>::with_capacity((WIDTH * HEIGHT) as usize);
 
-        let fov = PI/2.;
+        let fov = PI / 2.;
         for j in 0..HEIGHT {
             for i in 0..WIDTH {
-                let x: f32 = (2. * (i as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(fov / 2.) ;
+                let x: f32 = (2. * (i as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(fov / 2.);
                 let y: f32 = -(2. * (j as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(fov / 2.);
                 let ray = Ray {
                     origin: Vec3f::new(0., 0., 0.),
@@ -123,6 +128,17 @@ impl Scene {
     }
 }
 
+struct Light {
+    position: Vec3f,
+    intensity: f32,
+}
+
+impl Light {
+    fn new(position: Vec3f, intensity: f32) -> Self {
+        Light { position, intensity }
+    }
+}
+
 
 fn main() {
     let mut image_buffer = image::ImageBuffer::new(WIDTH, HEIGHT);
@@ -132,8 +148,13 @@ fn main() {
     let spheres = vec![
         Sphere { radius: 2.0, center: Vec3f::new(-3., 0., -16.) },
         Sphere { radius: 2.0, center: Vec3f::new(-1., -1.5, -12.) },
+        Sphere { radius: 3., center: Vec3f::new(1.5, -0.5, -18.) },
+        Sphere { radius: 4., center: Vec3f::new(7., 5., -12.) },
     ];
-    let scene = Scene::new(spheres);
+    let lights = vec![
+        Light {intensity: 1., position: Vec3f::new(0., 0., 0.)}
+    ];
+    let scene = Scene::new(spheres, lights);
     let mut frame_buffer = scene.render();
 
 
