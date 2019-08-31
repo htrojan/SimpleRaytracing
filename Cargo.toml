@@ -8,3 +8,10 @@ edition = "2018"
 
 [dependencies]
 image = "0.22.1"
+
+[dev-dependencies]
+bencher = "0.1.5"
+
+[[bench]]
+name = "scene_render"
+harness = false
