@@ -16,7 +16,7 @@ fn main() {
         Sphere { radius: 4., center: Vec3f::new(7., 5., -15.) },
     ];
     let lights = vec![
-        Light::new ( Vec3f::new(-30., 20., 10.), 2.5  )
+        Light::new ( Vec3f::new(-20., 20., 10.), 2.5  )
     ];
     let scene = Scene::new(spheres, lights);
     let mut frame_buffer = scene.render();

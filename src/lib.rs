@@ -119,8 +119,6 @@ impl Sphere {
 
         let l = self.radius * self.radius - distance_vector.length_squared();
 
-//        let is_hit: bool = (l > 0.);
-
         if l <= 0. {
             return None;
         }
@@ -132,7 +130,6 @@ impl Sphere {
         if hit_1 < 0. { hit_1 = hit_2 }
         if hit_1 < 0. { return None; }
 
-//        println!("Chosen: {}", hit_1);
         let hit_point = ray.origin.plus(ray.direction.times(hit_1));
         let normal = hit_point.minus(&self.center).normalize();
         Some(HitParam {lambda: hit_1, sphere: self})
@@ -156,10 +153,10 @@ impl Scene {
         for o in self.objects.iter() {
             match o.intersects_with_ray(&ray) {
                 Some(hit) => {
-                    match &mut foreground_hit {
+                    match &foreground_hit {
                         None => foreground_hit = Some(hit),
                         Some(fg) => {
-                            if fg.lambda < hit.lambda {
+                            if fg.lambda >= hit.lambda {
                                 foreground_hit = Some(hit);
                             }
                         },
