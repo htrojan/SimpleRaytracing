@@ -1,11 +1,13 @@
 use std::f32::consts::PI;
 
+use rayon::prelude::*;
+
 pub const ERR: f32 = 0.000001;
 
-pub const WIDTH: u32 = 1024;
-pub const HEIGHT: u32 = 768;
+pub const WIDTH: usize = 1024;
+pub const HEIGHT: usize = 768;
 
-#[derive(Debug, PartialOrd, PartialEq, Clone)]
+#[derive(Debug, PartialOrd, PartialEq, Clone, Copy)]
 pub struct Vec3f {
     pub x: f32,
     pub y: f32,
@@ -201,21 +203,24 @@ impl Scene {
     }
 
     pub fn render(&self) -> Vec<Vec3f> {
-        let mut frame_buffer = Vec::<Vec3f>::with_capacity((WIDTH * HEIGHT) as usize);
+        const NUM_ELEMENTS: usize = (WIDTH * HEIGHT) as usize;
+        const FOV: f32 = PI / 3.;
+        let mut frame_buffer = Vec::<Vec3f>::with_capacity(NUM_ELEMENTS);
+        frame_buffer.par_extend((0..NUM_ELEMENTS).into_par_iter()
+            .map(|i| {
+                let j: usize = i / WIDTH ;
+                let i: usize = i % WIDTH ;
 
-        let fov = PI / 3.;
-        for j in 0..HEIGHT {
-            for i in 0..WIDTH {
-                let x: f32 = (2. * (i as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(fov / 2.);
-                let y: f32 = -(2. * (j as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(fov / 2.);
+                let x: f32 = (2. * (i as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(FOV/ 2.);
+                let y: f32 = -(2. * (j as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(FOV/ 2.);
                 let ray = Ray::new(
                     Vec3f::new(0., 0., 0.),
                     Vec3f::new(x, y, -1.),
                 );
-
-                frame_buffer.push(self.cast_ray(&ray));
+                let result = self.cast_ray(&ray);
+                result
             }
-        }
+            ));
 
         frame_buffer
     }

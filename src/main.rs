@@ -5,7 +5,7 @@ use raytacing_test::*;
 
 
 fn main() {
-    let mut image_buffer = image::ImageBuffer::new(WIDTH, HEIGHT);
+    let mut image_buffer = image::ImageBuffer::new(WIDTH as u32, HEIGHT as u32);
 
 
     println!("Rendering...");
@@ -28,7 +28,7 @@ fn main() {
     println!("Writing image...");
     // Converts internal Vec3f representation to the format of the image library
     for (x, y, pixel) in image_buffer.enumerate_pixels_mut() {
-        let color = frame_buffer.get(((y % WIDTH) * WIDTH + x) as usize).unwrap();
+        let color = frame_buffer.get(((y % WIDTH as u32) * WIDTH as u32 + x) as usize).unwrap();
         // Normalize colors if the renderer overshot the intensity of the lights
         let mut max = color.max_element();
         if max < 1. {
