@@ -110,11 +110,18 @@ impl Ray {
         Ray { origin, direction: direction.normalize() }
     }
 
+    #[deprecated]
     #[inline]
-    fn hit_from_params(&self, sphere: &Sphere, distance: f32) -> Hit {
+    fn hit_from_distance(&self, sphere: &Sphere, distance: f32) -> Hit {
         let point = self.origin.plus(self.direction.times(distance));
         let normal = point.minus(&sphere.center);
         Hit { point, normal }
+    }
+
+    #[deprecated]
+    #[inline]
+    fn hit_from_params(&self, hit_params: &HitParams) -> Hit {
+        self.hit_from_distance(hit_params.sphere, hit_params.distance)
     }
 }
 
@@ -159,13 +166,22 @@ struct HitParams<'a> {
     distance: f32,
 }
 
+impl<'a> HitParams<'a> {
+    #[inline]
+    fn to_hit(&self, ray: &Ray) -> Hit {
+        let point = ray.origin.plus(ray.direction.times(self.distance));
+        let normal = point.minus(&self.sphere.center);
+        Hit { point, normal }
+    }
+}
+
 impl Scene {
     pub fn new(spheres: Vec<Sphere>, lights: Vec<Light>) -> Self {
         Scene { objects: spheres, lights }
     }
 
-    /// Returns the color of the pixel the ray originates from
-    pub fn cast_ray(&self, ray: &Ray) -> Vec3f {
+    fn get_intersection(&self, ray: &Ray) -> Option<HitParams> {
+
         let mut hit_params: Option<HitParams> = None;
 
         for o in self.objects.iter() {
@@ -183,10 +199,17 @@ impl Scene {
                 _ => continue,
             }
         }
+        hit_params
+    }
+
+    /// Returns the color of the pixel the ray originates from
+    pub fn cast_ray(&self, ray: &Ray) -> Vec3f {
+
+        let hit_params = self.get_intersection(ray);
 
         match hit_params {
             Some(params) => {
-                let hit = ray.hit_from_params(params.sphere, params.distance);
+                let hit = params.to_hit(ray);
 
                 let mut diffuse_light_intensity: f32 = 0.;
                 for light in self.lights.iter() {
@@ -312,7 +335,7 @@ mod tests {
         let result = sphere.intersects_with_ray(&ray);
         assert_eq!(result.is_some(), true);
         let hit = result.unwrap();
-        let hit = ray.hit_from_params(&sphere, hit);
+        let hit = ray.hit_from_distance(&sphere, hit);
         let normal = hit.normal;
         dbg!(&normal);
         assert!(normal.equal_within_err(Vec3f::new(-1., -1., 0.).normalize()));
@@ -335,7 +358,7 @@ mod tests {
         let result = sphere.intersects_with_ray(&ray);
         assert_eq!(result.is_some(), true);
         let hit = result.unwrap();
-        let hit = ray.hit_from_params(&sphere, hit);
+        let hit = ray.hit_from_distance(&sphere, hit);
         let normal = hit.normal;
         assert_eq!(normal, Vec3f::new(-1., 0., 0.).normalize());
     }
