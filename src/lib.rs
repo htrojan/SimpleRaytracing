@@ -142,7 +142,7 @@ impl Sphere {
         if l <= 0. {
             return None;
         }
-
+        let l = l.sqrt();
         //These are the two possible hit points
         let mut hit_1 = lambda - l;
         let hit_2 = lambda + l;
@@ -181,7 +181,6 @@ impl Scene {
     }
 
     fn get_intersection(&self, ray: &Ray) -> Option<HitParams> {
-
         let mut hit_params: Option<HitParams> = None;
 
         for o in self.objects.iter() {
@@ -204,16 +203,25 @@ impl Scene {
 
     /// Returns the color of the pixel the ray originates from
     pub fn cast_ray(&self, ray: &Ray) -> Vec3f {
-
         let hit_params = self.get_intersection(ray);
 
-        match hit_params {
+        match &hit_params {
             Some(params) => {
                 let hit = params.to_hit(ray);
 
                 let mut diffuse_light_intensity: f32 = 0.;
                 for light in self.lights.iter() {
                     let light_dir = light.position.minus(&hit.point).normalize();
+
+                    let shadow_orig = match light_dir.dot(&hit.normal) > 0. {
+                        true => hit.point.plus(hit.normal.times(  1e-3)),
+                        false => hit.point.plus(hit.normal.times(- 1e-3)),
+                    };
+
+                    let shadow_ray = Ray::new(shadow_orig, light_dir.times(1.));
+                    let is_hit = self.get_intersection(&shadow_ray).is_some();
+
+                    if is_hit { continue; }
                     diffuse_light_intensity +=
                         light.intensity * f32::max(0., light_dir.dot(&hit.normal));
                 }
@@ -231,11 +239,11 @@ impl Scene {
         let mut frame_buffer = Vec::<Vec3f>::with_capacity(NUM_ELEMENTS);
         frame_buffer.par_extend((0..NUM_ELEMENTS).into_par_iter()
             .map(|i| {
-                let j: usize = i / WIDTH ;
-                let i: usize = i % WIDTH ;
+                let j: usize = i / WIDTH;
+                let i: usize = i % WIDTH;
 
-                let x: f32 = (2. * (i as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(FOV/ 2.);
-                let y: f32 = -(2. * (j as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(FOV/ 2.);
+                let x: f32 = (2. * (i as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(FOV / 2.);
+                let y: f32 = -(2. * (j as f32 + 0.5) / WIDTH as f32 - 1.) * f32::tan(FOV / 2.);
                 let ray = Ray::new(
                     Vec3f::new(0., 0., 0.),
                     Vec3f::new(x, y, -1.),
