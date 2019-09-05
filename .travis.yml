@@ -16,4 +16,4 @@ deploy:
   file: $TRAVIS_BUILD_DIR/target/release/raytacing_test.exe
   skip_cleanup: true
   on:
-    tabs: true
+    tags: true
