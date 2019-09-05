@@ -1,14 +1,20 @@
 os:
-  - linux
-  - windows
+- linux
+- windows
 language: rust
 rust:
-  - stable
+- stable
 matrix:
   allow_failures:
-    - rust: nightly
+  - rust: nightly
 cache: cargo
 script:
-  - cargo build --verbose
-  - cargo test --verbose
-  - cargo bench --verbose
+- cargo build --verbose
+- cargo test --verbose
+- cargo build --release --verbose
+deploy:
+  provider: releases
+  api_key:
+    secure: vQ5uhr1DUrtmT4YLuKBID2G5JtWnchw1uB/8AjK+p8QDOaETjTqGDLm0/WNtco0MwrXEW7q3WpHueCdKLXj/GDQLRNVRsb7tRJi7E1HGBViFU/Oe34c4c8mHR51cl3YvTpUQe5s8ZEz3zdjvFzwmxhZcLaZ4PINJYvxdoi7Yy9B+uIChMzH5Z7YCxiOSTTBa466GhGvnmCdSNk9TkTKwD0O4pIHo7OLLhTvM5/MIIaC+FNwqEaIESD+RjGJiAimmsjp6+WLXAM3UHj29JgJPDzzH2RYX54olwhoBjiMuOcRSN04NXDYSosIhDU+QRbQod2w2SqAHKDBEypOTyOUmnwEt0qXITCw75fTvrOvtyFTFdbxrOr2ePxvV/fjWHmDHGIklm/q98pSx1J6Dlaa5qxmQ7eUxUbIbI5H60cdFRL6CeFvG4Gx35oVWSIV13tyj2gHt32+zvpOteSPz+nLAymEsN7UipZ3znt0JQPIrmCDuSwvAYrw7Ylb3itZgK7/MGYPUxIAt+4W5NF6sR6xtIaXKZAsCESY/peNoGT+g1LDPM18e6t09tFhLciZ9rEVRA+TcSrt/8wPj5fOl5Jf5g/NPyUZp5vaGTr89ZgV+xtT7tUm6NsJwamA2BGgQdiglQ5sZHFPm3CXpCnfocLeOuBX3DM8E9ChqEjl/rOUBJDg=
+  file: $TRAVIS_BUILD_DIR/raytacing_test.exe
+  skip_cleanup: true
