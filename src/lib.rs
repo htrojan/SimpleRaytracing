@@ -2,7 +2,8 @@ use std::f32::consts::PI;
 
 use rayon::prelude::*;
 
-pub const ERR: f32 = 0.000001;
+#[allow(dead_code)]
+const ERR: f32 = 0.000001;
 
 pub const WIDTH: usize = 1024;
 pub const HEIGHT: usize = 768;
@@ -21,7 +22,7 @@ pub struct Scene {
 
 pub struct HitParams<'a> {
     sphere: &'a Sphere,
-    distance: f32,
+    distance_to_hit: f32,
 }
 
 pub struct Sphere {
@@ -39,6 +40,16 @@ pub struct Material {
 pub struct Hit {
     normal: Vec3f,
     point: Vec3f,
+}
+
+pub struct Light {
+    position: Vec3f,
+    intensity: f32,
+}
+
+pub struct Ray {
+    origin: Vec3f,
+    direction: Vec3f,
 }
 
 
@@ -99,6 +110,7 @@ impl Vec3f {
         (shortest_point, lambda)
     }
 
+    #[allow(dead_code)]
     fn equal_within_err(&self, other: Self) -> bool {
         (
             self.x < other.x + ERR && self.x > other.x - ERR &&
@@ -124,17 +136,20 @@ impl Material {
     }
 }
 
-pub struct Ray {
-    origin: Vec3f,
-    direction: Vec3f,
-}
-
 impl Ray {
     pub fn new(origin: Vec3f, direction: Vec3f) -> Self {
         Ray { origin, direction: direction.normalize() }
     }
 }
 
+impl<'a> HitParams<'a> {
+    #[inline]
+    fn to_hit(&self, ray: &Ray) -> Hit {
+        let point = ray.origin.plus(&ray.direction.times(self.distance_to_hit));
+        let normal = point.minus(&self.sphere.center);
+        Hit { point, normal }
+    }
+}
 
 impl Sphere {
     //The ray has to have a normalized direction vector
@@ -158,17 +173,7 @@ impl Sphere {
 
 //        let hit_point = ray.origin.plus(&ray.direction.times(hit_1));
 //        let normal = hit_point.minus(&self.center).normalize();
-        Some(HitParams{sphere: &self, distance: hit_1})
-    }
-}
-
-
-impl<'a> HitParams<'a> {
-    #[inline]
-    fn to_hit(&self, ray: &Ray) -> Hit {
-        let point = ray.origin.plus(&ray.direction.times(self.distance));
-        let normal = point.minus(&self.sphere.center);
-        Hit { point, normal }
+        Some(HitParams{sphere: &self, distance_to_hit: hit_1})
     }
 }
 
@@ -186,7 +191,7 @@ impl Scene {
                     match &hit_params {
                         None => hit_params = Some(hit_param),
                         Some(params) => {
-                            if hit_param.distance <= params.distance {
+                            if hit_param.distance_to_hit <= params.distance_to_hit {
                                 hit_params = Some(hit_param)
                             }
                         }
@@ -252,11 +257,6 @@ impl Scene {
 
         frame_buffer
     }
-}
-
-pub struct Light {
-    position: Vec3f,
-    intensity: f32,
 }
 
 impl Light {
