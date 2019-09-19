@@ -171,8 +171,6 @@ impl Sphere {
         if hit_1 < 0. { hit_1 = hit_2 }
         if hit_1 < 0. { return None; }
 
-//        let hit_point = ray.origin.plus(&ray.direction.times(hit_1));
-//        let normal = hit_point.minus(&self.center).normalize();
         Some(HitParams{sphere: &self, distance_to_hit: hit_1})
     }
 }
