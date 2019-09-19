@@ -5,9 +5,6 @@ use bencher::Bencher;
 use raytacing_test::*;
 
 fn bench_sample_scene(b: &mut Bencher) {
-    let materials = vec![
-        Material::new(Vec3f::new(0.3, 0.1, 0.1)),
-    ];
     let spheres = vec![
         Sphere { radius: 2.0, center: Vec3f::new(-3., 0., -16.), material: Material::default()},
         Sphere { radius: 2.0, center: Vec3f::new(-1., -1.5, -12.), material: Material::default()},

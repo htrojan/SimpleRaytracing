@@ -14,6 +14,34 @@ pub struct Vec3f {
     pub z: f32,
 }
 
+pub struct Scene {
+    objects: Vec<Sphere>,
+    lights: Vec<Light>,
+}
+
+pub struct HitParams<'a> {
+    sphere: &'a Sphere,
+    distance: f32,
+}
+
+pub struct Sphere {
+    pub center: Vec3f,
+    pub radius: f32,
+    pub material: Material,
+}
+
+pub struct Material {
+    pub color: Vec3f,
+    pub n_index: f32,
+    pub translucency: f32,
+}
+
+pub struct Hit {
+    normal: Vec3f,
+    point: Vec3f,
+}
+
+
 impl Vec3f {
     pub fn new(x: f32, y: f32, z: f32) -> Vec3f {
         Vec3f { x, y, z }
@@ -30,7 +58,7 @@ impl Vec3f {
     }
 
     #[inline]
-    pub fn plus(&self, other: Self) -> Self {
+    pub fn plus(&self, other: &Self) -> Self {
         Vec3f { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
     }
 
@@ -67,7 +95,7 @@ impl Vec3f {
 
         let lambda: f32 = plane_prod;
 
-        let shortest_point = ray.origin.plus(ray.direction.times(lambda));
+        let shortest_point = ray.origin.plus(&ray.direction.times(lambda));
         (shortest_point, lambda)
     }
 
@@ -80,23 +108,19 @@ impl Vec3f {
     }
 }
 
-pub struct Sphere {
-    pub center: Vec3f,
-    pub radius: f32,
-    pub material: Material,
-}
-
-pub struct Material {
-    pub color: Vec3f,
-}
 
 impl Material {
-    pub fn new(color: Vec3f) -> Self {
-        Material { color }
+
+    pub fn new_diffuse( color: Vec3f) -> Self {
+        Material { color, translucency: 0., n_index: 1.}
+    }
+
+    pub fn new(color: Vec3f, translucency: f32, n_index: f32) -> Self {
+        Material { color, translucency, n_index}
     }
 
     pub fn default() -> Self {
-        Material { color: Vec3f::new(0.3, 0.1, 0.1) }
+        Material::new_diffuse( Vec3f::new(0.3, 0.1, 0.1))
     }
 }
 
@@ -109,30 +133,12 @@ impl Ray {
     pub fn new(origin: Vec3f, direction: Vec3f) -> Self {
         Ray { origin, direction: direction.normalize() }
     }
-
-    #[deprecated]
-    #[inline]
-    fn hit_from_distance(&self, sphere: &Sphere, distance: f32) -> Hit {
-        let point = self.origin.plus(self.direction.times(distance));
-        let normal = point.minus(&sphere.center);
-        Hit { point, normal }
-    }
-
-    #[deprecated]
-    #[inline]
-    fn hit_from_params(&self, hit_params: &HitParams) -> Hit {
-        self.hit_from_distance(hit_params.sphere, hit_params.distance)
-    }
 }
 
-pub struct Hit {
-    normal: Vec3f,
-    point: Vec3f,
-}
 
 impl Sphere {
     //The ray has to have a normalized direction vector
-    pub fn intersects_with_ray(&self, ray: &Ray) -> Option<f32> {
+    pub fn intersects_with_ray(&self, ray: &Ray) -> Option<HitParams> {
         let (shortest_point, lambda) = self.center.shortest_point_to_ray(&ray);
 
         let distance_vector = self.center.minus(&shortest_point);
@@ -150,26 +156,17 @@ impl Sphere {
         if hit_1 < 0. { hit_1 = hit_2 }
         if hit_1 < 0. { return None; }
 
-        let hit_point = ray.origin.plus(ray.direction.times(hit_1));
-        let normal = hit_point.minus(&self.center).normalize();
-        Some(hit_1)
+//        let hit_point = ray.origin.plus(&ray.direction.times(hit_1));
+//        let normal = hit_point.minus(&self.center).normalize();
+        Some(HitParams{sphere: &self, distance: hit_1})
     }
 }
 
-pub struct Scene {
-    objects: Vec<Sphere>,
-    lights: Vec<Light>,
-}
-
-struct HitParams<'a> {
-    sphere: &'a Sphere,
-    distance: f32,
-}
 
 impl<'a> HitParams<'a> {
     #[inline]
     fn to_hit(&self, ray: &Ray) -> Hit {
-        let point = ray.origin.plus(ray.direction.times(self.distance));
+        let point = ray.origin.plus(&ray.direction.times(self.distance));
         let normal = point.minus(&self.sphere.center);
         Hit { point, normal }
     }
@@ -185,12 +182,12 @@ impl Scene {
 
         for o in self.objects.iter() {
             match o.intersects_with_ray(&ray) {
-                Some(hit_distance) => {
+                Some(hit_param) => {
                     match &hit_params {
-                        None => hit_params = Some(HitParams { sphere: o, distance: hit_distance }),
+                        None => hit_params = Some(hit_param),
                         Some(params) => {
-                            if hit_distance <= params.distance {
-                                hit_params = Some(HitParams { sphere: o, distance: hit_distance })
+                            if hit_param.distance <= params.distance {
+                                hit_params = Some(hit_param)
                             }
                         }
                     }
@@ -214,8 +211,8 @@ impl Scene {
                     let light_dir = light.position.minus(&hit.point).normalize();
 
                     let shadow_orig = match light_dir.dot(&hit.normal) > 0. {
-                        true => hit.point.plus(hit.normal.times(  1e-3)),
-                        false => hit.point.plus(hit.normal.times(- 1e-3)),
+                        true => hit.point.plus(&hit.normal.times(  1e-3)),
+                        false => hit.point.plus(&hit.normal.times(- 1e-3)),
                     };
 
                     let shadow_ray = Ray::new(shadow_orig, light_dir.times(1.));
@@ -342,8 +339,7 @@ mod tests {
 
         let result = sphere.intersects_with_ray(&ray);
         assert_eq!(result.is_some(), true);
-        let hit = result.unwrap();
-        let hit = ray.hit_from_distance(&sphere, hit);
+        let hit = result.unwrap().to_hit(&ray);
         let normal = hit.normal;
         dbg!(&normal);
         assert!(normal.equal_within_err(Vec3f::new(-1., -1., 0.).normalize()));
@@ -365,8 +361,7 @@ mod tests {
 
         let result = sphere.intersects_with_ray(&ray);
         assert_eq!(result.is_some(), true);
-        let hit = result.unwrap();
-        let hit = ray.hit_from_distance(&sphere, hit);
+        let hit= result.unwrap().to_hit(&ray);
         let normal = hit.normal;
         assert_eq!(normal, Vec3f::new(-1., 0., 0.).normalize());
     }
