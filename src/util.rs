@@ -2,17 +2,25 @@ use crate::Vec3f;
 
 /// Returns the new direction the light ray would travel to
 /// both vectors have to be normalize to work.
-pub fn snellius(in_direction: &Vec3f, surface_normal: &Vec3f, n1: f32, n2: f32) -> Vec3f{
+/// Returned vector is normalized.
+pub fn snellius(in_direction: &Vec3f, surface_normal: &Vec3f, n1_index: f32, n2_index: f32) -> Vec3f{
 
-    let n = surface_normal; // Just for shorthand writing
-    let n1_length = n.dot(&in_direction.times(-1.));
+    // Explanation of algorithm:
+    // n1, s1, in_direction are used to construct a rectangular triangle
+    // at the 'incoming' side.
+    // n2, s2, result make up a rectangular triangle at the 'outgoing' side.
+    // s1 and s2 are the adjacent sides of the triangles and therefore
+    // relate to each other by snellius' law.
+
+    let n1 = surface_normal; // Just for shorthand writing
+    let n1_length = n1.dot(&in_direction.times(-1.));
 
     // Connection in the triangle
-    let n = n.times(n1_length);
+    let n = n1.times(n1_length);
     let s1 = n.minus(&in_direction.times(-1.));
     let s1_length= s1.length();
 
-    let s2_length = (n1/n2) * s1_length;
+    let s2_length = (n1_index/n2_index) * s1_length;
     let n2_length = f32::sqrt(1. - s2_length * s2_length);
 
     let n2 = surface_normal.times(-1. * n2_length);
