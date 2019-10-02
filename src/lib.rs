@@ -2,6 +2,8 @@ use std::f32::consts::PI;
 
 use rayon::prelude::*;
 
+mod util;
+
 #[allow(dead_code)]
 const ERR: f32 = 0.000001;
 
@@ -78,6 +80,10 @@ impl Vec3f {
         self.x * self.x + self.y * self.y + self.z * self.z
     }
 
+    pub fn length(&self) -> f32 {
+        f32::sqrt(self.length_squared())
+    }
+
     #[inline]
     pub fn times(&self, factor: f32) -> Self {
         Vec3f { x: self.x * factor, y: self.y * factor, z: self.z * factor }
@@ -120,19 +126,17 @@ impl Vec3f {
     }
 }
 
-
 impl Material {
-
-    pub fn new_diffuse( color: Vec3f) -> Self {
-        Material { color, translucency: 0., n_index: 1.}
+    pub fn new_diffuse(color: Vec3f) -> Self {
+        Material { color, translucency: 0., n_index: 1. }
     }
 
     pub fn new(color: Vec3f, translucency: f32, n_index: f32) -> Self {
-        Material { color, translucency, n_index}
+        Material { color, translucency, n_index }
     }
 
     pub fn default() -> Self {
-        Material::new_diffuse( Vec3f::new(0.3, 0.1, 0.1))
+        Material::new_diffuse(Vec3f::new(0.3, 0.1, 0.1))
     }
 }
 
@@ -171,7 +175,7 @@ impl Sphere {
         if hit_1 < 0. { hit_1 = hit_2 }
         if hit_1 < 0. { return None; }
 
-        Some(HitParams{sphere: &self, distance_to_hit: hit_1})
+        Some(HitParams { sphere: &self, distance_to_hit: hit_1 })
     }
 }
 
@@ -214,8 +218,8 @@ impl Scene {
                     let light_dir = light.position.minus(&hit.point).normalize();
 
                     let shadow_orig = match light_dir.dot(&hit.normal) > 0. {
-                        true => hit.point.plus(&hit.normal.times(  1e-3)),
-                        false => hit.point.plus(&hit.normal.times(- 1e-3)),
+                        true => hit.point.plus(&hit.normal.times(1e-3)),
+                        false => hit.point.plus(&hit.normal.times(-1e-3)),
                     };
 
                     let shadow_ray = Ray::new(shadow_orig, light_dir.times(1.));
@@ -359,7 +363,7 @@ mod tests {
 
         let result = sphere.intersects_with_ray(&ray);
         assert_eq!(result.is_some(), true);
-        let hit= result.unwrap().to_hit(&ray);
+        let hit = result.unwrap().to_hit(&ray);
         let normal = hit.normal;
         assert_eq!(normal, Vec3f::new(-1., 0., 0.).normalize());
     }
