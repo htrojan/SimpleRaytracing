@@ -1,8 +1,12 @@
 use std::f32::consts::PI;
+use std::ops;
+use std::ops::{Add, Mul, Neg, Sub};
 
 use rayon::prelude::*;
 
 mod util;
+#[macro_use]
+mod op_help;
 
 #[allow(dead_code)]
 const ERR: f32 = 0.000001;
@@ -123,6 +127,28 @@ impl Vec3f {
                 self.y < other.y + ERR && self.y > other.y - ERR &&
                 self.z < other.z + ERR && self.z > other.z - ERR
         )
+    }
+}
+
+impl_op!(+ |a: Vec3f, b: Vec3f| -> Vec3f {
+        Vec3f { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }
+});
+
+impl_op!(- |a: Vec3f, b: Vec3f| -> Vec3f {
+        Vec3f { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }
+});
+
+impl_op_commutative!(* |a: Vec3f, b: f32| -> Vec3f {
+        Vec3f { x: a.x * b, y: a.y * b, z: a.z * b}
+});
+
+
+
+impl Neg for Vec3f {
+    type Output = Vec3f;
+
+    fn neg(self) -> Self::Output {
+        Vec3f { x: -self.x, y: -self.y, z: -self.z }
     }
 }
 
