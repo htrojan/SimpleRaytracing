@@ -294,7 +294,7 @@ impl Scene {
         const NUM_ELEMENTS: usize = (WIDTH * HEIGHT) as usize;
         const FOV: f32 = PI / 3.;
         let mut frame_buffer = Vec::<Vec3f>::with_capacity(NUM_ELEMENTS);
-        frame_buffer.extend((0..NUM_ELEMENTS).into_iter()
+        frame_buffer.par_extend((0..NUM_ELEMENTS).into_par_iter()
             .map(|i| {
                 let j: usize = i / WIDTH;
                 let i: usize = i % WIDTH;
