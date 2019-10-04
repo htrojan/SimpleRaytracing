@@ -10,9 +10,11 @@ fn main() {
     let _materials = vec![
         Material::new_diffuse(Vec3f::new(0.3, 0.1, 0.1)),
     ];
+    let _glass = Material {color: Vec3f::new(0., 1., 0.),
+                        diffuse: 0.2, translucency: 0.8, ref_index: 1.1};
     let _spheres = vec![
-        Sphere { radius: 2.0, center: Vec3f::new(3., 3., -16.), material: Material::default()},
-        Sphere { radius: 3.0, center: Vec3f::new(-5., 1.5, -16.), material: Material::new_diffuse(Vec3f::new(0.1, 0.1, 0.3))},
+        Sphere { radius: 2.0, center: Vec3f::new(-3., 3., -22.), material: Material::default()},
+        Sphere { radius: 3.0, center: Vec3f::new(-4., 1.5, -16.), material: _glass},
 //        Sphere { radius: 3., center: Vec3f::new(4.5, 5.5, -18.), material: Material::default() },
         Sphere { radius: 4., center: Vec3f::new(7., 5., -16.), material: Material::default() },
     ];

@@ -4,6 +4,8 @@ use std::ops::{Add, Mul, Neg, Sub};
 
 use rayon::prelude::*;
 
+use crate::util::snellius;
+
 mod util;
 #[macro_use]
 mod op_help;
@@ -39,8 +41,9 @@ pub struct Sphere {
 
 pub struct Material {
     pub color: Vec3f,
-    pub n_index: f32,
+    pub ref_index: f32,
     pub translucency: f32,
+    pub diffuse: f32,
 }
 
 pub struct Hit {
@@ -154,11 +157,11 @@ impl Neg for Vec3f {
 
 impl Material {
     pub fn new_diffuse(color: Vec3f) -> Self {
-        Material { color, translucency: 0., n_index: 1. }
+        Material { color, translucency: 0., ref_index: 1., diffuse: 1.0 }
     }
 
     pub fn new(color: Vec3f, translucency: f32, n_index: f32) -> Self {
-        Material { color, translucency, n_index }
+        Material { color, translucency, ref_index: n_index, diffuse: 1.0 }
     }
 
     pub fn default() -> Self {
@@ -176,7 +179,7 @@ impl<'a> HitParams<'a> {
     #[inline]
     fn to_hit(&self, ray: &Ray) -> Hit {
         let point = ray.origin.plus(&ray.direction.times(self.distance_to_hit));
-        let normal = point.minus(&self.sphere.center);
+        let normal = point.minus(&self.sphere.center).times(1. / self.sphere.radius);
         Hit { point, normal }
     }
 }
@@ -232,20 +235,21 @@ impl Scene {
     }
 
     /// Returns the color of the pixel the ray originates from
-    pub fn cast_ray(&self, ray: &Ray) -> Vec3f {
+    pub fn cast_ray(&self, ray: &Ray, max_depth: u32) -> Vec3f {
         let hit_params = self.get_intersection(ray);
 
         match &hit_params {
             Some(params) => {
                 let hit = params.to_hit(ray);
-
+                let material = &params.sphere.material;
+                // Diffuse light
                 let mut diffuse_light_intensity: f32 = 0.;
                 for light in self.lights.iter() {
                     let light_dir = light.position.minus(&hit.point).normalize();
 
                     let shadow_orig = match light_dir.dot(&hit.normal) > 0. {
-                        true => hit.point.plus(&hit.normal.times(1e-3)),
-                        false => hit.point.plus(&hit.normal.times(-1e-3)),
+                        true => hit.point.plus(&hit.normal.times(1e-5)),
+                        false => hit.point.plus(&hit.normal.times(-1e-5)),
                     };
 
                     let shadow_ray = Ray::new(shadow_orig, light_dir.times(1.));
@@ -255,9 +259,32 @@ impl Scene {
                     diffuse_light_intensity +=
                         light.intensity * f32::max(0., light_dir.dot(&hit.normal));
                 }
+                let color = &material.color;
+                let mut diffuse_color = color.times(diffuse_light_intensity) * material.diffuse;
 
-                let color = &params.sphere.material.color;
-                return color.times(diffuse_light_intensity);
+                // Refracted Light
+                if params.sphere.material.translucency > 0. && max_depth > 0 {
+                    let new_ray_dir =
+                        snellius(&ray.direction,
+                                 &hit.normal,
+                                 material.ref_index);
+                    if new_ray_dir.is_none() {
+                        println!("None:");
+//                        dbg!(&ray.direction);
+//                        dbg!(&hit.normal);
+                        return diffuse_color; }
+                    let new_point= match new_ray_dir.unwrap().dot(&hit.normal) > 0. {
+                        true => hit.point.plus(&hit.normal.times(1e-5)),
+                        false => hit.point.plus(&hit.normal.times(-1e-5)),
+                    };
+
+                    let new_ray = Ray { direction: new_ray_dir.unwrap(), origin: new_point};
+
+                    let color = self.cast_ray(&new_ray, max_depth - 1);
+                    diffuse_color = diffuse_color + material.translucency * color;
+                }
+
+                return diffuse_color;
             }
             None => return Vec3f::new(0.4, 0.4, 0.3),
         }
@@ -267,7 +294,7 @@ impl Scene {
         const NUM_ELEMENTS: usize = (WIDTH * HEIGHT) as usize;
         const FOV: f32 = PI / 3.;
         let mut frame_buffer = Vec::<Vec3f>::with_capacity(NUM_ELEMENTS);
-        frame_buffer.par_extend((0..NUM_ELEMENTS).into_par_iter()
+        frame_buffer.extend((0..NUM_ELEMENTS).into_iter()
             .map(|i| {
                 let j: usize = i / WIDTH;
                 let i: usize = i % WIDTH;
@@ -278,7 +305,7 @@ impl Scene {
                     Vec3f::new(0., 0., 0.),
                     Vec3f::new(x, y, -1.),
                 );
-                let result = self.cast_ray(&ray);
+                let result = self.cast_ray(&ray, 2);
                 result
             }
             ));

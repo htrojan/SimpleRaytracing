@@ -59,8 +59,8 @@ mod tests {
 
 //    #[test]
     fn test_snellius() {
-        let in_dir = Vec3f::new(1., 1., 0.).normalize();
-        let norm_dir = Vec3f::new(0., -1., 0.);
+        let in_dir = Vec3f::new(-0.242, 0.032, -0.969).normalize();
+        let norm_dir = Vec3f::new(0.683, -1.05, 2.72);
 
         let out_dir = snellius(&in_dir, &norm_dir, 2.2).unwrap();
         assert_eq!(Vec3f::new(1., 1., 0.).normalize(), out_dir);
