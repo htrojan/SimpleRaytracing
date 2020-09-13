@@ -1,5 +1,5 @@
 [package]
-name = "raytacing_test"
+name = "raytracing_test"
 version = "0.1.0"
 authors = ["Hendrik Trojan <h.trojan.github@posteo.de>"]
 edition = "2018"

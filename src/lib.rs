@@ -11,13 +11,13 @@ mod util;
 mod op_help;
 
 #[allow(dead_code)]
-const ETA: f64 = 1.0e-8;
+const ETA: f64 = 1.0e-10;
 // const ETA: f64 = 0.;
 // const BIAS: f64 = 1.0e-5;
-const BIAS: f64 = 0.0;
+const BIAS: f64 = 1.0e-12;
 
-pub const WIDTH: usize = 1024;
-pub const HEIGHT: usize = 768;
+pub const WIDTH: usize = 1920;
+pub const HEIGHT: usize = 1080;
 
 // pub const WIDTH: usize = 1920;
 // pub const HEIGHT: usize = 1080;
@@ -72,6 +72,20 @@ pub struct Light {
 pub struct Ray {
     origin: Vec3f,
     direction: Vec3f,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Color {
+    r: f32,
+    g: f32,
+    b: f32,
+}
+
+impl_op_commutative!(* |a: Color, b: f32| -> Color{
+    Color {r: a.r * b, g: a.g * b , b: a.b * b }
+});
+impl Color {
+
 }
 
 
@@ -328,7 +342,7 @@ impl Scene {
 
             if is_hit { continue; }
             let reflection = create_reflection_dir(&-light_dir, &hit.normal);
-            specular_light_intensity += reflection.dot(&ray_direction).powf(2.);
+            specular_light_intensity += reflection.dot(&ray_direction).abs().powf(3.);
             // dbg!(specular_light_intensity);
             //Calculate specular highlight
             diffuse_light_intensity +=

@@ -1,5 +1,5 @@
-use raytacing_test::*;
-use raytacing_test::{HEIGHT, WIDTH};
+use raytracing_test::*;
+use raytracing_test::{HEIGHT, WIDTH};
 
 fn main() {
     let mut image_buffer = image::ImageBuffer::new(WIDTH as u32, HEIGHT as u32);
@@ -7,11 +7,11 @@ fn main() {
     println!("Rendering...");
     let _materials = vec![Material::new_diffuse(Vec3f::new(0.3, 0.1, 0.1))];
     let _glass = Material {
-        color: Vec3f::new(0., 1., 0.),
+        color: Vec3f::new(1., 1., 1.).normalize(),
         diffuse: 0.0,
         translucency: 0.8,
         ref_index: 1.05,
-        specular: 0.0,
+        specular: 0.5,
     };
     let _spec1 = Material {
         color: Vec3f::new(0.0, 0.2, 1.0).normalize(),
