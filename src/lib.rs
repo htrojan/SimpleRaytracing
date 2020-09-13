@@ -3,7 +3,7 @@ use std::ops::{Add, Mul, Neg, Sub};
 
 use rayon::prelude::*;
 
-use crate::util::{snellius};
+use crate::util::{snellius, create_reflection_dir};
 use crate::HitResult::{NoHit, HitDetected, OutsideSphere};
 
 mod util;
@@ -53,6 +53,7 @@ pub struct Material {
     pub ref_index: f64,
     pub translucency: f64,
     pub diffuse: f64,
+    pub specular: f64,
 }
 
 #[derive(Debug)]
@@ -167,11 +168,11 @@ impl Neg for Vec3f {
 
 impl Material {
     pub fn new_diffuse(color: Vec3f) -> Self {
-        Material { color, translucency: 0., ref_index: 1., diffuse: 1.0 }
+        Material { color, translucency: 0., ref_index: 1., diffuse: 1.0, specular: 0.0}
     }
 
-    pub fn new(color: Vec3f, translucency: f64, n_index: f64) -> Self {
-        Material { color, translucency, ref_index: n_index, diffuse: 1.0 }
+    pub fn new(color: Vec3f, specular: f64, translucency: f64, n_index: f64) -> Self {
+        Material { color, translucency, ref_index: n_index, diffuse: 1.0, specular}
     }
 
     pub fn default() -> Self {
@@ -309,10 +310,12 @@ impl Scene {
         hit_params
     }
 
+    //Takes the hitpoint and the direction of the ray that produced the hit
     #[inline]
-    fn diffuse_intensity(&self, hit: &Hit) -> f64 {
+    fn diffuse_specular_intensity(&self, hit: &Hit, ray_direction: &Vec3f) -> (f64, f64) {
         // Diffuse light
-        let mut diffuse_light_intensity: f64 = 0.;
+        let mut diffuse_light_intensity: f64 = 0.1;
+        let mut specular_light_intensity: f64 = 0.0;
         for light in self.lights.iter() {
             let light_dir = light.position.minus(&hit.point).normalize();
             let shadow_orig = match light_dir.dot(&hit.normal) > 0. {
@@ -324,12 +327,18 @@ impl Scene {
             let is_hit = self.get_intersection(&shadow_ray).is_some();
 
             if is_hit { continue; }
+            let reflection = create_reflection_dir(&-light_dir, &hit.normal);
+            specular_light_intensity += reflection.dot(&ray_direction).powf(2.);
+            // dbg!(specular_light_intensity);
+            //Calculate specular highlight
             diffuse_light_intensity +=
                 light.intensity * f64::max(0., light_dir.dot(&hit.normal));
         }
 
-        diffuse_light_intensity
+        (diffuse_light_intensity, specular_light_intensity)
     }
+
+
     /// Returns the color of the pixel the ray originates from
     pub fn cast_ray(&self, ray: &Ray, max_depth: u32) -> Vec3f {
         let hit_params = self.get_intersection(ray);
@@ -339,10 +348,13 @@ impl Scene {
                 let material = &params.sphere.material;
                 let hit = params.to_hit(ray);
                 let material_color = &material.color;
-
+                let light_color = Vec3f::new(1.0, 1.0, 1.0);
                 //Diffuse light
-                let diffuse_light_intensity = self.diffuse_intensity(&hit);
-                let mut diffuse_color = material_color.times(diffuse_light_intensity) * material.diffuse;
+                let (diffuse_light_intensity, specular_light_intensity) =
+                    self.diffuse_specular_intensity(&hit, &ray.direction);
+                let mut color =
+                    material_color.times(diffuse_light_intensity) * material.diffuse +
+                    light_color.times(specular_light_intensity) * material.specular;
 
                 // Refracted Light
                 if params.sphere.material.translucency > 0. && max_depth > 0 {
@@ -359,10 +371,10 @@ impl Scene {
                     }
 
                     let new_ray = new_ray.unwrap();
-                    let color = self.cast_ray(&new_ray, max_depth - 1);
-                    diffuse_color = diffuse_color + material.translucency * color;
+                    let ray_color = self.cast_ray(&new_ray, max_depth - 1);
+                    color = color + material.translucency * ray_color;
                 }
-                diffuse_color
+                color
             }
             None => Vec3f::new(0.4, 0.4, 0.3), //Default background color
         }

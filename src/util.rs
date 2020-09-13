@@ -39,6 +39,26 @@ pub fn snellius(in_direction: Vec3f, surface_normal: Vec3f, hit_point: Vec3f, re
     })
 }
 
+pub fn create_reflection(in_direction: Vec3f, surface_normal: Vec3f, hit_point: Vec3f) -> Ray {
+    let vertical_component = surface_normal.dot(&in_direction);
+    //in_direction and normal have to be calculated with the small angle.
+    //Therefore their sign is shifted if they are negative
+    let horizontal_component = in_direction - surface_normal * vertical_component * vertical_component.signum();
+    let reflection = -1. * in_direction + 2. * horizontal_component;
+    Ray {
+        direction: reflection,
+        origin: hit_point - surface_normal * BIAS * vertical_component.signum()
+    }
+}
+
+pub fn create_reflection_dir(in_direction: &Vec3f, surface_normal: &Vec3f) -> Vec3f {
+    let vertical_component = surface_normal.dot(&in_direction);
+    //in_direction and normal have to be calculated with the small angle.
+    //Therefore their sign is shifted if they are negative
+    let horizontal_component = in_direction - surface_normal * vertical_component * vertical_component.signum();
+    let reflection = -1. * in_direction + 2. * horizontal_component;
+    reflection
+}
 
 #[cfg(test)]
 mod tests {
