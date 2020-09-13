@@ -3,7 +3,7 @@ use std::ops::{Add, Mul, Neg, Sub};
 
 use rayon::prelude::*;
 
-use crate::util::{snellius, create_reflection_dir};
+use crate::util::{snellius, create_reflection_dir, create_reflection};
 use crate::HitResult::{NoHit, HitDetected, OutsideSphere};
 
 mod util;
@@ -50,10 +50,11 @@ pub struct Sphere {
 #[derive(Debug, Clone, Copy)]
 pub struct Material {
     pub color: Vec3f,
-    pub ref_index: f64,
-    pub translucency: f64,
     pub diffuse: f64,
     pub specular: f64,
+    pub reflectivity: f64,
+    pub ref_index: f64,
+    pub translucency: f64,
 }
 
 #[derive(Debug)]
@@ -65,6 +66,7 @@ pub struct Hit {
 #[derive(Debug)]
 pub struct Light {
     position: Vec3f,
+    color: Vec3f,
     intensity: f64,
 }
 
@@ -92,6 +94,10 @@ impl Color {
 impl Vec3f {
     pub fn new(x: f64, y: f64, z: f64) -> Vec3f {
         Vec3f { x, y, z }
+    }
+
+    pub fn null() -> Vec3f {
+        Vec3f::new(0., 0., 0.)
     }
 
     #[inline]
@@ -182,11 +188,12 @@ impl Neg for Vec3f {
 
 impl Material {
     pub fn new_diffuse(color: Vec3f) -> Self {
-        Material { color, translucency: 0., ref_index: 1., diffuse: 1.0, specular: 0.0}
+        Material { color, translucency: 0., ref_index: 1., diffuse: 1.0, specular: 0.0,
+        reflectivity: 0.}
     }
 
     pub fn new(color: Vec3f, specular: f64, translucency: f64, n_index: f64) -> Self {
-        Material { color, translucency, ref_index: n_index, diffuse: 1.0, specular}
+        Material { color, translucency, ref_index: n_index, diffuse: 1.0, specular, reflectivity: 0.}
     }
 
     pub fn default() -> Self {
@@ -326,10 +333,10 @@ impl Scene {
 
     //Takes the hitpoint and the direction of the ray that produced the hit
     #[inline]
-    fn diffuse_specular_intensity(&self, hit: &Hit, ray_direction: &Vec3f) -> (f64, f64) {
+    fn phong_color(&self, hit: &Hit, ray_direction: &Vec3f, material: &Material) -> Vec3f {
         // Diffuse light
         let mut diffuse_light_intensity: f64 = 0.1;
-        let mut specular_light_intensity: f64 = 0.0;
+        let mut specular_light: Vec3f = Vec3f::null();
         for light in self.lights.iter() {
             let light_dir = light.position.minus(&hit.point).normalize();
             let shadow_orig = match light_dir.dot(&hit.normal) > 0. {
@@ -342,33 +349,39 @@ impl Scene {
 
             if is_hit { continue; }
             let reflection = create_reflection_dir(&-light_dir, &hit.normal);
-            specular_light_intensity += reflection.dot(&ray_direction).abs().powf(3.);
+            specular_light = specular_light + light.color * reflection.dot(&ray_direction).abs().powf(3.);
             // dbg!(specular_light_intensity);
             //Calculate specular highlight
             diffuse_light_intensity +=
                 light.intensity * f64::max(0., light_dir.dot(&hit.normal));
         }
 
-        (diffuse_light_intensity, specular_light_intensity)
+        material.color * material.diffuse * diffuse_light_intensity+
+        material.specular * specular_light
+        // (diffuse_light_intensity, specular_light_intensity)
     }
 
+    pub fn cast_ray(&self, ray: &Ray, max_depth: u32) -> Vec3f {
+        return match self.cast_ray_internal(ray, max_depth) {
+            Some(color) => color,
+            None => Vec3f::new(0.4, 0.4, 0.3), //Default background color
+        }
+    }
 
     /// Returns the color of the pixel the ray originates from
-    pub fn cast_ray(&self, ray: &Ray, max_depth: u32) -> Vec3f {
+    #[inline]
+    pub fn cast_ray_internal(&self, ray: &Ray, max_depth: u32) -> Option<Vec3f> {
         let hit_params = self.get_intersection(ray);
 
         return match &hit_params {
             Some(params) => {
                 let material = &params.sphere.material;
                 let hit = params.to_hit(ray);
-                let material_color = &material.color;
-                let light_color = Vec3f::new(1.0, 1.0, 1.0);
                 //Diffuse light
-                let (diffuse_light_intensity, specular_light_intensity) =
-                    self.diffuse_specular_intensity(&hit, &ray.direction);
-                let mut color =
-                    material_color.times(diffuse_light_intensity) * material.diffuse +
-                    light_color.times(specular_light_intensity) * material.specular;
+                let mut color = self.phong_color(
+                    &hit,
+                &ray.direction,
+                &material);
 
                 // Refracted Light
                 if params.sphere.material.translucency > 0. && max_depth > 0 {
@@ -381,16 +394,33 @@ impl Scene {
 
                     if new_ray.is_none() { // Total reflection. No reflection implemented up to now
                         println!("None:");
-                        return Vec3f::new(1.0, 1., 1.0)
+                        // return Vec3f::new(1.0, 1., 1.0)
+                         return None
                     }
 
                     let new_ray = new_ray.unwrap();
                     let ray_color = self.cast_ray(&new_ray, max_depth - 1);
                     color = color + material.translucency * ray_color;
                 }
-                color
+                //Reflected light
+                if params.sphere.material.reflectivity > 0. && max_depth > 0 {
+                    let new_ray = create_reflection(
+                        ray.direction,
+                        hit.normal,
+                         hit.point
+                    );
+                    let ray_color = self.cast_ray_internal(&new_ray, max_depth -1);
+                    if ray_color.is_some() {
+                        color = color + material.reflectivity * ray_color.unwrap()
+                    }
+                    // else {
+                    //     color = color + material.reflectivity * Vec3f::new(1., 1., 1.).normalize()
+                    // }
+                }
+                Some(color)
             }
-            None => Vec3f::new(0.4, 0.4, 0.3), //Default background color
+            None => None//Vec3f::new(0.4, 0.4, 0.3), //Default background color
+            // None => Vec3f::new(0.4, 0.4, 0.3), //Default background color
         }
     }
 
@@ -422,7 +452,7 @@ impl Scene {
 
 impl Light {
     pub fn new(position: Vec3f, intensity: f64) -> Self {
-        Light { position, intensity }
+        Light { position, intensity, color: Vec3f::new(1., 1., 1.).normalize() }
     }
 }
 
