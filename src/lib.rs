@@ -47,7 +47,7 @@ pub struct Sphere {
     pub material: Material,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Material {
     pub color: Vec3f,
     pub ref_index: f64,
@@ -309,31 +309,39 @@ impl Scene {
         hit_params
     }
 
+    #[inline]
+    fn diffuse_intensity(&self, hit: &Hit) -> f64 {
+        // Diffuse light
+        let mut diffuse_light_intensity: f64 = 0.;
+        for light in self.lights.iter() {
+            let light_dir = light.position.minus(&hit.point).normalize();
+            let shadow_orig = match light_dir.dot(&hit.normal) > 0. {
+                true => hit.point.plus(&hit.normal.times(BIAS)),
+                false => hit.point.plus(&hit.normal.times(-BIAS)),
+            };
+
+            let shadow_ray = Ray::new(shadow_orig, light_dir.times(1.));
+            let is_hit = self.get_intersection(&shadow_ray).is_some();
+
+            if is_hit { continue; }
+            diffuse_light_intensity +=
+                light.intensity * f64::max(0., light_dir.dot(&hit.normal));
+        }
+
+        diffuse_light_intensity
+    }
     /// Returns the color of the pixel the ray originates from
     pub fn cast_ray(&self, ray: &Ray, max_depth: u32) -> Vec3f {
         let hit_params = self.get_intersection(ray);
 
         return match &hit_params {
             Some(params) => {
-                let hit = params.to_hit(ray);
                 let material = &params.sphere.material;
-                // Diffuse light
-                let mut diffuse_light_intensity: f64 = 0.;
-                for light in self.lights.iter() {
-                    let light_dir = light.position.minus(&hit.point).normalize();
-                    let shadow_orig = match light_dir.dot(&hit.normal) > 0. {
-                        true => hit.point.plus(&hit.normal.times(BIAS)),
-                        false => hit.point.plus(&hit.normal.times(-BIAS)),
-                    };
-
-                    let shadow_ray = Ray::new(shadow_orig, light_dir.times(1.));
-                    let is_hit = self.get_intersection(&shadow_ray).is_some();
-
-                    if is_hit { continue; }
-                    diffuse_light_intensity +=
-                        light.intensity * f64::max(0., light_dir.dot(&hit.normal));
-                }
+                let hit = params.to_hit(ray);
                 let material_color = &material.color;
+
+                //Diffuse light
+                let diffuse_light_intensity = self.diffuse_intensity(&hit);
                 let mut diffuse_color = material_color.times(diffuse_light_intensity) * material.diffuse;
 
                 // Refracted Light
@@ -345,39 +353,18 @@ impl Scene {
                         material.ref_index
                     );
 
-                    if new_ray.is_none() {
+                    if new_ray.is_none() { // Total reflection. No reflection implemented up to now
                         println!("None:");
-                        return Vec3f::new(0.0, 0., 0.1 * (max_depth) as f64)
+                        return Vec3f::new(1.0, 1., 1.0)
                     }
+
                     let new_ray = new_ray.unwrap();
                     let color = self.cast_ray(&new_ray, max_depth - 1);
                     diffuse_color = diffuse_color + material.translucency * color;
-
-
-                    // if max_depth ==1 {
-                    //     let hit_p = self.get_intersection_debug(&new_ray);
-                    //     match hit_p {
-                    //         NoHit(d) => {
-                    //             diffuse_color = Vec3f::new(1.0, 1.0, 0.0);
-                    //             // println!("{:?}", new_ray)
-                    //         },
-                    //         OutsideSphere(params) => {
-                    //             diffuse_color = Vec3f::new(0.0, 0.0, 1.0);
-                    //             // println!("Outside: {}", params);
-                    //         }
-                    //         HitDetected(params) => {
-                    //             if params.sphere.radius != 4.0 {
-                    //                 // println!("Sphere = {:?}", params.sphere)
-                    //             }
-                    //         }
-                    //     }
-                    //
-                    // }
                 }
-
                 diffuse_color
             }
-            None => Vec3f::new(0.4, 0.4, 0.3),
+            None => Vec3f::new(0.4, 0.4, 0.3), //Default background color
         }
     }
 
